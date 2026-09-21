@@ -5,6 +5,13 @@ const DIRS = {
 	right: { x: 1, y: 0 },
 }
 const OPPOSITE = { up: 'down', down: 'up', left: 'right', right: 'left' }
+const SOURCE_COLORS = {
+	jev: 'rgba(56, 224, 176, 0.85)',
+	override: 'rgba(255, 159, 67, 0.9)',
+	human: 'rgba(120, 180, 255, 0.9)',
+	fallback: 'rgba(255, 84, 112, 0.9)',
+}
+const SOURCE_LABELS = { jev: 'Jev', override: 'You', human: 'You', fallback: 'Fallback' }
 
 const $ = (id) => document.getElementById(id)
 
@@ -18,7 +25,7 @@ const GRID = 16
 const game = {
 	running: false,
 	alive: true,
-	driver: 'jev', // 'jev' | 'human'
+	driver: 'jev', // 'jev' | 'copilot' | 'human'
 	speedMs: 120,
 	grid: GRID,
 	snake: [],
@@ -33,6 +40,13 @@ const game = {
 	usage: { input_tokens: 0, output_tokens: 0 },
 	lastDecision: null,
 	lastPayload: null,
+	lastMoveSource: null,
+	lastAppliedMove: null,
+	pendingOverride: null,
+	jevMoves: 0,
+	humanOverrides: 0,
+	moveSources: [],
+	overrideFlashTimer: null,
 	lastLatencyMs: 0,
 	requestInFlight: false,
 	decisionAbort: null,
@@ -62,9 +76,16 @@ function resetGame() {
 	game.usage = { input_tokens: 0, output_tokens: 0 }
 	game.lastDecision = null
 	game.lastPayload = null
+	game.lastMoveSource = null
+	game.lastAppliedMove = null
+	game.pendingOverride = null
+	game.jevMoves = 0
+	game.humanOverrides = 0
+	game.moveSources = []
 	game.anim = { active: false, start: 0, duration: 0, from: [], to: [] }
 	placeFood()
 	updateStats()
+	renderControl()
 	hideOverlay()
 	draw()
 }
@@ -110,7 +131,7 @@ function legalMovesFrom(snake, direction, food) {
 	return moves
 }
 
-function applyMove(move) {
+function applyMove(move, source = 'jev') {
 	if (!move || !DIRS[move]) return false
 	const delta = DIRS[move]
 	const head = game.snake[0]
@@ -129,6 +150,7 @@ function applyMove(move) {
 
 	game.prevSnake = game.snake.map((cell) => ({ ...cell }))
 	game.direction = move
+	recordMoveSource(move, source)
 
 	const grown = [next, ...game.snake]
 	if (!willEat) grown.pop()
@@ -141,6 +163,16 @@ function applyMove(move) {
 		placeFood()
 	}
 	return true
+}
+
+function recordMoveSource(move, source) {
+	game.lastMoveSource = source
+	game.lastAppliedMove = move
+	if (source === 'override') game.humanOverrides += 1
+	if (source === 'jev') game.jevMoves += 1
+	game.moveSources.push({ move, source })
+	if (game.moveSources.length > 24) game.moveSources.shift()
+	renderControl()
 }
 
 function startAnimation() {
@@ -175,10 +207,11 @@ async function runLoop() {
 	const token = ++game.loopToken
 	while (game.running && token === game.loopToken) {
 		const started = performance.now()
-		if (game.driver === 'jev') {
-			await decideAndApply(token)
+		if (game.driver === 'human') {
+			if (!applyMove(game.direction, 'human')) break
 		} else {
-			if (!applyMove(game.direction)) break
+			// 'jev' and 'copilot' both ask Jev; copilot lets a human override the answer.
+			await decideAndApply(token)
 		}
 		if (!game.alive) break
 
@@ -228,14 +261,27 @@ async function decideAndApply(token) {
 		drawSparkline()
 		updateStats()
 
-		if (data.decision?.move) applyMove(data.decision.move)
+		// A human override wins over Jev's answer, but only if it is legal right now.
+		const override = game.driver === 'copilot' ? game.pendingOverride : null
+		game.pendingOverride = null
+		let move = data.decision?.move ?? null
+		let source = data.decision?.usedFallback ? 'fallback' : 'jev'
+		if (override) {
+			const legal = legalMovesFrom(game.snake, game.direction, game.food)
+			if (legal.includes(override)) {
+				move = override
+				source = 'override'
+			}
+		}
+
+		if (move) applyMove(move, source)
 		else endGame('No legal move')
 	} catch (error) {
 		if (error.name === 'AbortError') return
 		console.error(error)
 		if (token !== game.loopToken) return
 		const moves = legalMovesFrom(game.snake, game.direction, game.food)
-		if (moves.length > 0) applyMove(moves[0])
+		if (moves.length > 0) applyMove(moves[0], 'fallback')
 		else endGame('No legal move')
 	} finally {
 		clearTimeout(timeoutId)
@@ -260,6 +306,7 @@ function clientState() {
 		direction: game.direction,
 		food: { ...game.food },
 		score: game.score,
+		lastMoveSource: game.lastMoveSource,
 	}
 }
 
@@ -330,25 +377,18 @@ function draw() {
 	context.fill()
 	context.shadowBlur = 0
 
-	// Highlight the cell Jev chose, anchored to the head's pre-move cell and shown
-	// only for the duration of the glide into it.
-	const move = game.lastDecision?.decision?.move
-	if (
-		move &&
-		game.anim.active &&
-		game.running &&
-		game.driver === 'jev' &&
-		game.lastDecision?.decision?.gate !== 'review'
-	) {
+	// Highlight the cell the snake just moved into, anchored to the head's pre-move
+	// cell and coloured by who decided (Jev / human override / human / fallback).
+	if (game.anim.active && game.running && game.lastAppliedMove) {
 		const fromHead = game.anim.from[0]
 		if (fromHead) {
-			const delta = DIRS[move]
+			const delta = DIRS[game.lastAppliedMove]
 			const targetX = fromHead.x + delta.x
 			const targetY = fromHead.y + delta.y
 			if (targetX >= 0 && targetY >= 0 && targetX < game.grid && targetY < game.grid) {
 				const tx = (targetX + 0.5) * size
 				const ty = (targetY + 0.5) * size
-				context.strokeStyle = 'rgba(56, 224, 176, 0.85)'
+				context.strokeStyle = SOURCE_COLORS[game.lastMoveSource] ?? SOURCE_COLORS.jev
 				context.lineWidth = 2.5
 				context.setLineDash([5, 4])
 				context.beginPath()
@@ -549,6 +589,24 @@ function renderAnswers(data) {
 	}
 }
 
+function renderControl() {
+	const tally = $('control-tally')
+	if (tally) tally.textContent = `Jev ${game.jevMoves} · You ${game.humanOverrides}`
+
+	const feed = $('control-feed')
+	if (!feed) return
+	if (game.moveSources.length === 0) {
+		feed.innerHTML = '<span class="muted">No moves yet.</span>'
+		return
+	}
+	feed.innerHTML = game.moveSources
+		.map((entry) => {
+			const label = SOURCE_LABELS[entry.source] ?? entry.source
+			return `<span class="chip chip-${entry.source}">${escapeHtml(label)} · ${escapeHtml(entry.move)}</span>`
+		})
+		.join('')
+}
+
 function flashGate(gate) {
 	const badge = $('gate-badge')
 	badge.className = 'badge'
@@ -608,7 +666,9 @@ function togglePlay() {
 
 function setDriver(driver) {
 	game.driver = driver
+	game.pendingOverride = null
 	$('driver-jev').classList.toggle('active', driver === 'jev')
+	$('driver-copilot').classList.toggle('active', driver === 'copilot')
 	$('driver-human').classList.toggle('active', driver === 'human')
 	hideOverlay()
 	if (game.running) {
@@ -616,6 +676,14 @@ function setDriver(driver) {
 		abortDecision()
 		runLoop()
 	}
+}
+
+function flashOverride() {
+	const element = $('override-flash')
+	if (!element) return
+	element.classList.add('show')
+	clearTimeout(game.overrideFlashTimer)
+	game.overrideFlashTimer = setTimeout(() => element.classList.remove('show'), 550)
 }
 
 function bindControls() {
@@ -627,6 +695,7 @@ function bindControls() {
 		if (wasRunning && game.alive) runLoop()
 	})
 	$('driver-jev').addEventListener('click', () => setDriver('jev'))
+	$('driver-copilot').addEventListener('click', () => setDriver('copilot'))
 	$('driver-human').addEventListener('click', () => setDriver('human'))
 	$('speed').addEventListener('input', (event) => {
 		game.speedMs = Number(event.target.value)
@@ -657,8 +726,23 @@ function bindControls() {
 		const move = map[event.key]
 		if (!move) return
 		event.preventDefault()
-		if (game.driver !== 'human' || !game.alive) return
+		if (!game.alive || game.driver === 'jev') return
 		if (move === OPPOSITE[game.direction]) return
+
+		if (game.driver === 'copilot') {
+			// Grab the wheel: this direction replaces Jev's answer for the next tick,
+			// but only if it is still legal when the tick resolves.
+			game.pendingOverride = move
+			flashOverride()
+			if (!game.running) {
+				game.running = true
+				updatePlayButton()
+				hideOverlay()
+				runLoop()
+			}
+			return
+		}
+
 		if (!game.running) {
 			// Queue the intended direction for the loop's first iteration instead of
 			// moving here, which would apply a second move on top of the loop's own.

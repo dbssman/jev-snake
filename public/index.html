@@ -31,6 +31,7 @@
 			<section class="stage">
 				<div class="canvas-wrap">
 					<canvas id="board"></canvas>
+					<div id="override-flash" class="override-flash">You took over</div>
 					<div id="overlay" class="overlay hidden">
 						<h2 id="overlay-title">Paused</h2>
 						<p id="overlay-text">Press play to let Jev drive.</p>
@@ -42,6 +43,7 @@
 					<button id="reset" class="btn">⟲ Reset</button>
 					<div class="segmented" role="group" aria-label="Driver">
 						<button id="driver-jev" class="seg active">Jev drives</button>
+						<button id="driver-copilot" class="seg">Co-pilot</button>
 						<button id="driver-human" class="seg">You drive</button>
 					</div>
 					<label class="slider">
@@ -51,11 +53,14 @@
 					</label>
 				</div>
 				<p class="hint">
-					<strong>You drive:</strong>
-					arrow keys / WASD. Jev chooses only from the legal moves; code owns legality and overrides on an
-					illegal move, low confidence, or no escape route. Each tick is one API round-trip, so the achieved
-					rate is latency-bound — the speed slider sets a floor, and the glide is paced to the observed
-					latency.
+					<strong>Jev drives</strong>
+					on its own.
+					<strong>Co-pilot</strong>
+					lets you grab the wheel: press an arrow mid-tick and your direction replaces Jev's answer if it is
+					still legal, tagged in the control feed.
+					<strong>You drive</strong>
+					with arrow keys / WASD. Code always owns legality and overrides on an illegal move, low confidence,
+					or no escape route. Each tick is one API round-trip, so the achieved rate is latency-bound.
 				</p>
 			</section>
 
@@ -95,6 +100,14 @@
 					<div id="answers" class="answers">
 						<p class="muted">Play to see typed answers arrive.</p>
 					</div>
+				</section>
+
+				<section class="card">
+					<header class="card-head">
+						<h3>Control</h3>
+						<span id="control-tally" class="muted">Jev 0 · You 0</span>
+					</header>
+					<div id="control-feed" class="feed"><span class="muted">No moves yet.</span></div>
 				</section>
 
 				<section class="card">

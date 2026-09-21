@@ -86,6 +86,18 @@ test('normalizeState clamps the grid, coordinates and direction', () => {
 	assert.equal(state.direction, 'right')
 })
 
+test('normalizeState keeps known move sources and drops unknown ones', () => {
+	assert.equal(normalizeState({ lastMoveSource: 'override' }).lastMoveSource, 'override')
+	assert.equal(normalizeState({ lastMoveSource: 'human' }).lastMoveSource, 'human')
+	assert.equal(normalizeState({ lastMoveSource: 'nonsense' }).lastMoveSource, null)
+	assert.equal(normalizeState({}).lastMoveSource, null)
+})
+
+test('buildFacts carries the previous move source to the model', () => {
+	const state = normalizeState({ ...wallHuggingState({ x: 0, y: 0 }), lastMoveSource: 'override' })
+	assert.equal(buildFacts(state).lastMoveSource, 'override')
+})
+
 test('the simulated bot only picks legal moves', () => {
 	const state = wallHuggingState({ x: 0, y: 0 })
 	const simulation = simulateDecision(state, buildFacts(state))

@@ -29,6 +29,8 @@ const DIRS = {
 }
 const OPPOSITE = { up: 'down', down: 'up', left: 'right', right: 'left' }
 const DIR_NAMES = Object.keys(DIRS)
+// Who set the previous move: Jev, a human override, a human (solo), or the code fallback.
+const MOVE_SOURCES = ['jev', 'override', 'human', 'fallback']
 
 // ---------------------------------------------------------------------------
 // Environment
@@ -129,7 +131,12 @@ function normalizeState(input) {
 	const requested = String(input?.direction ?? 'right')
 	const direction = DIR_NAMES.includes(requested) ? requested : 'right'
 
-	return { grid, snake, head, food, direction }
+	// Who chose the previous move. The client sends this so Jev can see that a
+	// human has been intervening, not just what the board looks like.
+	const requestedSource = String(input?.lastMoveSource ?? '')
+	const lastMoveSource = MOVE_SOURCES.includes(requestedSource) ? requestedSource : null
+
+	return { grid, snake, head, food, direction, lastMoveSource }
 }
 
 function bodySet(snake, { includeTail = true } = {}) {
@@ -227,6 +234,7 @@ function buildFacts(state) {
 		head: { x: head.x, y: head.y },
 		direction: state.direction,
 		food: { x: food.x, y: food.y },
+		lastMoveSource: state.lastMoveSource ?? null,
 		legalMoves: moves,
 		distanceToFoodByMove,
 		distanceToFoodNow: distanceToFood(head, food),
@@ -326,6 +334,10 @@ function buildQuestions(facts) {
 					snakeLength: facts.snakeLength,
 					legalMoves: facts.legalMoves,
 					distanceToFoodNow: facts.distanceToFoodNow,
+					// null on the opening move; otherwise who chose the previous move.
+					previous_move_source: facts.lastMoveSource,
+					previous_move_source_note:
+						'When `previous_move_source` is `override` or `human`, a player is steering by hand; keep the snake safe and avoid undoing their move.',
 				},
 			},
 			criteria: moveCriteria,
@@ -581,6 +593,7 @@ async function handleDecide(request, response) {
 		legalMoves: facts.legalMoves,
 		distanceToFoodNow: facts.distanceToFoodNow,
 		openSpaceFromHead: facts.openSpaceFromHead,
+		lastMoveSource: facts.lastMoveSource,
 	}
 
 	try {

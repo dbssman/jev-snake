@@ -44,7 +44,14 @@ shows `SIMULATED (no key)`. Add the key and reload to let Jev drive.
 ## Controls
 
 - **Play / Pause**, **Reset**.
-- **Jev drives** vs **You drive** (arrow keys / WASD).
+- Three drivers:
+    - **Jev drives** — the model decides every tick.
+    - **Co-pilot** — Jev decides, but you can grab the wheel: press an arrow mid-tick and your
+      direction replaces Jev's answer if it is still legal. The override is recorded and fed back to
+      Jev as `lastMoveSource`, so the model sees that a human is intervening.
+    - **You drive** — steer manually with arrow keys / WASD.
+- **Control** panel: a running tally (Jev vs You) and a tagged feed of who chose each move
+  (`Jev` / `You` / `Fallback`), colour-matched to the ring drawn on the move's target cell.
 - **Speed**: target ms per tick (40–600 ms). Each tick is one API round-trip, so the achieved rate is
   latency-bound; the stats show the target and the achieved decisions/second.
 - **Show request + answer**: the exact JSON sent to TypeSafe and the typed answers returned.
@@ -55,8 +62,9 @@ shows `SIMULATED (no key)`. Add the key and reload to let Jev drive.
 Every tick sends, to `POST https://api.typesafe.ai/v1/systemone`:
 
 - a small JSON `state`: the ASCII board (`#` body, `S` head, `F` food, `.` empty), grid size, head,
-  direction, food, snake length, the legal moves, and code-computed facts (distance to food, open
-  space from the head);
+  direction, food, snake length, the legal moves, code-computed facts (distance to food, open space
+  from the head), and `lastMoveSource` — who chose the previous move (`jev` / `override` / `human` /
+  `fallback`, or `null` on the opening move);
 - five typed questions: `move` (Choice over legal moves), `strategy` (Choice), `position_danger`
   (Score), `escape_route` (Noul), `aligned_with_food` (Noul).
 

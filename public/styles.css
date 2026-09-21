@@ -433,6 +433,72 @@ h1 {
 	padding: 7px 9px;
 }
 
+.feed {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	max-height: 92px;
+	overflow: hidden;
+}
+
+.chip {
+	font-family: var(--mono);
+	font-size: 10.5px;
+	padding: 2px 7px;
+	border-radius: 999px;
+	border: 1px solid var(--line);
+	color: var(--text);
+	white-space: nowrap;
+}
+
+.chip-jev {
+	border-color: rgba(56, 224, 176, 0.45);
+	background: rgba(56, 224, 176, 0.12);
+	color: #7ff7d6;
+}
+
+.chip-override {
+	border-color: rgba(255, 159, 67, 0.55);
+	background: rgba(255, 159, 67, 0.14);
+	color: #ffc07a;
+}
+
+.chip-human {
+	border-color: rgba(120, 180, 255, 0.5);
+	background: rgba(120, 180, 255, 0.12);
+	color: #a9ccff;
+}
+
+.chip-fallback {
+	border-color: rgba(255, 84, 112, 0.5);
+	background: rgba(255, 84, 112, 0.12);
+	color: #ff9fb0;
+}
+
+.override-flash {
+	position: absolute;
+	top: 12px;
+	right: 12px;
+	padding: 6px 12px;
+	border-radius: 999px;
+	font-size: 12px;
+	font-weight: 700;
+	letter-spacing: 0.3px;
+	color: #2a1500;
+	background: #ff9f43;
+	opacity: 0;
+	transform: translateY(-6px);
+	transition:
+		opacity 0.15s ease,
+		transform 0.15s ease;
+	pointer-events: none;
+}
+
+.override-flash.show {
+	opacity: 1;
+	transform: translateY(0);
+}
+
 .cost {
 	display: flex;
 	align-items: baseline;
