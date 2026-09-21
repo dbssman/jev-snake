@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Jev Snake — one typed decision per tick</title>
+		<link
+			rel="icon"
+			href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23070b12'/%3E%3Ctext x='16' y='23' font-size='20' text-anchor='middle' fill='%2338e0b0'%3E%E2%88%B5%3C/text%3E%3C/svg%3E"
+		/>
+		<link rel="stylesheet" href="/styles.css" />
+	</head>
+	<body>
+		<header class="topbar">
+			<div class="brand">
+				<span class="logo">∵</span>
+				<div>
+					<h1>Jev Snake</h1>
+					<p class="subtitle">
+						A typed decision model plays Snake: one judgment per tick, no text, probabilities out
+					</p>
+				</div>
+			</div>
+			<div class="topbar-right">
+				<span id="mode-badge" class="badge badge-muted">connecting…</span>
+				<span id="model-badge" class="badge badge-muted">—</span>
+			</div>
+		</header>
+
+		<main class="layout">
+			<section class="stage">
+				<div class="canvas-wrap">
+					<canvas id="board"></canvas>
+					<div id="overlay" class="overlay hidden">
+						<h2 id="overlay-title">Paused</h2>
+						<p id="overlay-text">Press play to let Jev drive.</p>
+					</div>
+				</div>
+
+				<div class="controls">
+					<button id="play" class="btn btn-primary">▶ Play</button>
+					<button id="reset" class="btn">⟲ Reset</button>
+					<div class="segmented" role="group" aria-label="Driver">
+						<button id="driver-jev" class="seg active">Jev drives</button>
+						<button id="driver-human" class="seg">You drive</button>
+					</div>
+					<label class="slider">
+						<span>Speed</span>
+						<input id="speed" type="range" min="40" max="600" step="20" value="120" />
+						<output id="speed-value">120ms</output>
+					</label>
+				</div>
+				<p class="hint">
+					<strong>You drive:</strong>
+					arrow keys / WASD. Jev chooses only from the legal moves; code owns legality and overrides on an
+					illegal move, low confidence, or no escape route. Each tick is one API round-trip, so the achieved
+					rate is latency-bound — the speed slider sets a floor, and the glide is paced to the observed
+					latency.
+				</p>
+			</section>
+
+			<aside class="panel">
+				<div class="stat-grid">
+					<div class="stat">
+						<span class="stat-label">Score</span>
+						<span id="stat-score" class="stat-value">0</span>
+					</div>
+					<div class="stat">
+						<span class="stat-label">Decisions</span>
+						<span id="stat-decisions" class="stat-value">0</span>
+					</div>
+					<div class="stat">
+						<span class="stat-label">Last latency</span>
+						<span id="stat-latency" class="stat-value">—</span>
+					</div>
+					<div class="stat">
+						<span class="stat-label">Decisions / s</span>
+						<span id="stat-rate" class="stat-value">—</span>
+					</div>
+				</div>
+
+				<section class="card">
+					<header class="card-head">
+						<h3>Latency</h3>
+						<span id="latency-summary" class="muted">no calls yet</span>
+					</header>
+					<canvas id="sparkline" height="64"></canvas>
+				</section>
+
+				<section class="card">
+					<header class="card-head">
+						<h3>Jev's last answer</h3>
+						<span id="gate-badge" class="badge badge-muted">idle</span>
+					</header>
+					<div id="answers" class="answers">
+						<p class="muted">Play to see typed answers arrive.</p>
+					</div>
+				</section>
+
+				<section class="card">
+					<header class="card-head">
+						<h3>Cost</h3>
+						<span class="muted" id="price-label">$0.042 / 1M input tokens, output free</span>
+					</header>
+					<div id="cost" class="cost">
+						<span class="stat-value" id="cost-total">$0.000000</span>
+						<span class="muted" id="cost-detail">0 tokens</span>
+					</div>
+				</section>
+
+				<section class="card">
+					<header class="card-head">
+						<h3>Inspect the wire</h3>
+						<button id="inspect-toggle" class="btn btn-small">Show request + answer</button>
+					</header>
+					<pre id="inspect" class="inspect hidden"></pre>
+				</section>
+			</aside>
+		</main>
+
+		<footer class="footer">
+			<span>
+				Jev = TypeSafe's System One model. State + typed questions in, typed answers + probabilities out.
+			</span>
+		</footer>
+
+		<script src="/app.js" type="module"></script>
+	</body>
+</html>
